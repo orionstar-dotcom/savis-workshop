@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Savis Workshop — 3D Design Studio</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #ffffff; --bg2: #f5f5f3; --bg3: #eeede9;
+  --text: #1a1a18; --text2: #6b6b67;
+  --border: rgba(0,0,0,0.12); --border2: rgba(0,0,0,0.22);
+  --radius: 8px; --radius-lg: 12px;
+  --purple: #534AB7; --purple-bg: #EEEDFE;
+  --teal: #0F6E56; --teal-bg: #E1F5EE;
+  --coral: #D85A30; --coral-bg: #FAECE7;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
+    --text: #f0efeb; --text2: #9a9a94;
+    --border: rgba(255,255,255,0.1); --border2: rgba(255,255,255,0.2);
+    --purple-bg: #26215C; --teal-bg: #04342C; --coral-bg: #4A1B0C;
+  }
+}
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg3); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+header { background: var(--bg); border-bottom: 0.5px solid var(--border); padding: 12px 20px; display: flex; align-items: center; gap: 10px; }
+header h1 { font-size: 16px; font-weight: 500; }
+.tab-bar { display: flex; gap: 4px; background: var(--bg); border-bottom: 0.5px solid var(--border); padding: 0 16px; }
+.tab { padding: 10px 16px; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text2); background: none; border-top: none; border-left: none; border-right: none; transition: color 0.15s; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--purple); border-bottom-color: var(--purple); font-weight: 500; }
+.page { display: none; }
+.page.active { display: flex; flex-direction: column; flex: 1; }
+
+/* ---- STUDIO ---- */
+#studio-wrap { display: flex; flex: 1; max-width: 1200px; margin: 16px auto; width: 100%; background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+#sidebar { width: 275px; flex-shrink: 0; border-right: 0.5px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 11px; overflow-y: auto; max-height: 700px; }
+#canvas-area { flex: 1; display: flex; flex-direction: column; background: var(--bg2); min-width: 0; }
+canvas#c3d { display: block; width: 100%; cursor: grab; }
+canvas#c3d:active { cursor: grabbing; }
+#stats-bar { border-top: 0.5px solid var(--border); padding: 8px 14px; display: flex; gap: 16px; flex-wrap: wrap; background: var(--bg); }
+.stat { display: flex; flex-direction: column; }
+.stat-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-val { font-size: 13px; font-weight: 500; }
+.hint { font-size: 10px; color: var(--text2); text-align: center; padding: 4px; background: var(--bg); border-top: 0.5px solid var(--border); }
+.sec-title { font-size: 10px; font-weight: 500; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.obj-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+.obj-btn { padding: 6px 2px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--bg); cursor: pointer; font-size: 10px; color: var(--text); text-align: center; transition: background 0.12s; line-height: 1.3; }
+.obj-btn:hover { background: var(--bg2); }
+.obj-btn.active { border-color: var(--purple); color: var(--purple); background: var(--purple-bg); }
+.mat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.mat-btn { padding: 6px 5px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--bg); cursor: pointer; font-size: 11px; color: var(--text); text-align: center; transition: background 0.12s; }
+.mat-btn:hover { background: var(--bg2); }
+.mat-btn.active { border-color: var(--teal); color: var(--teal); background: var(--teal-bg); }
+.ctrl-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.ctrl-row label { font-size: 11px; color: var(--text2); width: 62px; flex-shrink: 0; }
+.ctrl-row input[type=range] { flex: 1; accent-color: var(--purple); }
+.ctrl-row .val { font-size: 11px; font-weight: 500; min-width: 36px; text-align: right; }
+.ctrl-row select { flex: 1; font-size: 11px; padding: 3px 5px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--bg); color: var(--text); }
+.color-row { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+.swatch { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; flex-shrink: 0; }
+.swatch.active { border-color: var(--text); }
+#custom-color { width: 24px; height: 20px; border-radius: 50%; cursor: pointer; border: 0.5px solid var(--border); padding: 0; overflow: hidden; background: none; }
+.mat-detail { background: var(--bg2); border-radius: var(--radius); padding: 7px 9px; border: 0.5px solid var(--border); }
+.mat-detail-row { display: flex; justify-content: space-between; font-size: 11px; padding: 2px 0; border-bottom: 0.5px solid var(--border); }
+.mat-detail-row:last-child { border-bottom: none; }
+.mat-detail-row span:first-child { color: var(--text2); }
+.mat-detail-row span:last-child { font-weight: 500; }
+.sim-btn { width: 100%; padding: 9px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text); transition: background 0.12s; }
+.sim-btn:hover { background: var(--bg2); }
+.sim-btn.running { border-color: var(--coral); color: var(--coral); background: var(--coral-bg); }
+#sim-log { font-size: 10px; color: var(--text2); line-height: 1.7; max-height: 95px; overflow-y: auto; background: var(--bg2); border-radius: var(--radius); padding: 6px 8px; margin-top: 5px; border: 0.5px solid var(--border); white-space: pre-line; }
+
+/* ---- SABER BUILDER ---- */
+#saber-wrap { display: flex; gap: 0; flex: 1; max-width: 1200px; margin: 16px auto; width: 100%; background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+#saber-panel { width: 250px; flex-shrink: 0; border-right: 0.5px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; max-height: 700px; }
+#saber-viewer { flex: 1; display: flex; flex-direction: column; background: var(--bg2); }
+#saber-canvas { display: block; flex: 1; }
+#saber-status { border-top: 0.5px solid var(--border); padding: 8px 14px; background: var(--bg); font-size: 11px; color: var(--text2); min-height: 34px; }
+.part-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.part-btn { padding: 6px 4px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--bg); cursor: pointer; font-size: 10px; color: var(--text); text-align: center; transition: background 0.12s; line-height: 1.3; }
+.part-btn:hover { background: var(--bg2); }
+.sw { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; flex-shrink: 0; }
+.sw.active { border-color: var(--text); }
+.swatch-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.parts-list { background: var(--bg2); border-radius: var(--radius); padding: 6px 8px; font-size: 11px; max-height: 110px; overflow-y: auto; border: 0.5px solid var(--border); }
+.pli { display: flex; justify-content: space-between; align-items: center; padding: 2px 0; border-bottom: 0.5px solid var(--border); }
+.pli:last-child { border-bottom: none; }
+.rm-btn { font-size: 10px; color: var(--text2); cursor: pointer; padding: 1px 5px; border: 0.5px solid var(--border); border-radius: 4px; background: var(--bg); }
+.rm-btn:hover { color: var(--coral); border-color: var(--coral); }
+.action-btn { width: 100%; padding: 8px; border: 0.5px solid var(--border2); border-radius: var(--radius); background: var(--bg); cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text); transition: background 0.12s; margin-bottom: 4px; }
+.action-btn:hover { background: var(--bg2); }
+.action-btn.danger { border-color: #993C1D; color: #993C1D; }
+
+@media (max-width: 700px) {
+  #studio-wrap, #saber-wrap { flex-direction: column; margin: 8px; }
+  #sidebar, #saber-panel { width: 100%; max-height: none; border-right: none; border-bottom: 0.5px solid var(--border); }
+  canvas#c3d { height: 280px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Savis Workshop</h1>
+  <span style="font-size:12px;color:var(--text2);background:var(--bg2);padding:3px 8px;border-radius:20px;border:0.5px solid var(--border)">Design Studio</span>
+</header>
+
+<div class="tab-bar">
+  <button class="tab active" onclick="switchTab('studio',this)">3D Studio</button>
+  <button class="tab" onclick="switchTab('saber',this)">Lightsaber Builder</button>
+</div>
+
+<!-- ======= 3D STUDIO PAGE ======= -->
+<div class="page active" id="page-studio">
+<div id="studio-wrap">
+  <div id="sidebar">
+    <div>
+      <div class="sec-title">Object</div>
+      <div class="obj-grid">
+        <button class="obj-btn active" onclick="setObject('gear',this)">⚙ Gear</button>
+        <button class="obj-btn" onclick="setObject('lightsaber',this)">🗡 Lightsaber</button>
+        <button class="obj-btn" onclick="setObject('shield',this)">🛡 Shield</button>
+        <button class="obj-btn" onclick="setObject('ring',this)">⬤ Ring</button>
+        <button class="obj-btn" onclick="setObject('sphere',this)">● Sphere</button>
+        <button class="obj-btn" onclick="setObject('blade',this)">╱ Blade</button>
+        <button class="obj-btn" onclick="setObject('helmet',this)">⬡ Helmet</button>
+        <button class="obj-btn" onclick="setObject('axe',this)">⚒ Axe</button>
+        <button class="obj-btn" onclick="setObject('armor',this)">▣ Chest</button>
+        <button class="obj-btn" onclick="setObject('chain',this)">⛓ Chain</button>
+        <button class="obj-btn" onclick="setObject('arrow',this)">➶ Arrow</button>
+        <button class="obj-btn" onclick="setObject('cannon',this)">◎ Cannon</button>
+        <button class="obj-btn" onclick="setObject('crossbow',this)">✦ Xbow</button>
+        <button class="obj-btn" onclick="setObject('hammer',this)">🔨 Hammer</button>
+        <button class="obj-btn" onclick="setObject('spear',this)">↑ Spear</button>
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">Material</div>
+      <div class="mat-grid">
+        <button class="mat-btn active" onclick="setMaterial('steel',this)">⚙ Steel</button>
+        <button class="mat-btn" onclick="setMaterial('titanium',this)">◈ Titanium</button>
+        <button class="mat-btn" onclick="setMaterial('leather',this)">▣ Leather</button>
+        <button class="mat-btn" onclick="setMaterial('carbon',this)">◆ Carbon</button>
+        <button class="mat-btn" onclick="setMaterial('plasma',this)">✦ Plasma</button>
+        <button class="mat-btn" onclick="setMaterial('crystal',this)">◇ Crystal</button>
+        <button class="mat-btn" onclick="setMaterial('obsidian',this)">■ Obsidian</button>
+        <button class="mat-btn" onclick="setMaterial('bronze',this)">◉ Bronze</button>
+        <button class="mat-btn" onclick="setMaterial('dragonbone',this)">☽ Dragonbone</button>
+        <button class="mat-btn" onclick="setMaterial('mithril',this)">✧ Mithril</button>
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">Material inputs</div>
+      <div class="ctrl-row"><label>Grade</label><select id="sel-grade" onchange="updateGrade(this.value)"><option value="standard">Standard</option><option value="hardened">Hardened</option><option value="tempered">Tempered</option><option value="annealed">Annealed</option><option value="cast">Cast</option></select></div>
+      <div class="ctrl-row"><label>Coating</label><select id="sel-coat" onchange="updateCoating(this.value)"><option value="none">None</option><option value="chrome">Chrome plate</option><option value="nitride">Nitride</option><option value="dlc">DLC</option><option value="ceramic">Ceramic</option><option value="anodize">Anodize</option></select></div>
+      <div class="ctrl-row"><label>Temp (°C)</label><input type="range" min="-40" max="1200" step="10" value="20" oninput="updateParam('temp',this.value)"><span class="val" id="v-temp">20°</span></div>
+      <div class="ctrl-row"><label>Load (N)</label><input type="range" min="0" max="5000" step="50" value="500" oninput="updateParam('load',this.value)"><span class="val" id="v-load">500</span></div>
+      <div class="ctrl-row"><label>Wear cycles</label><input type="range" min="0" max="1000000" step="10000" value="0" oninput="updateParam('wear',this.value)"><span class="val" id="v-wear">0</span></div>
+      <div class="mat-detail">
+        <div class="mat-detail-row"><span>Yield strength</span><span id="md-yield">—</span></div>
+        <div class="mat-detail-row"><span>Tensile strength</span><span id="md-tensile">—</span></div>
+        <div class="mat-detail-row"><span>Melting point</span><span id="md-melt">—</span></div>
+        <div class="mat-detail-row"><span>Conductivity</span><span id="md-cond">—</span></div>
+        <div class="mat-detail-row"><span>Coating bonus</span><span id="md-coat">—</span></div>
+        <div class="mat-detail-row"><span>Temp effect</span><span id="md-tempfx">—</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">Color</div>
+      <div class="color-row">
+        <div class="swatch active" style="background:#888780" onclick="setColor('#888780',this)"></div>
+        <div class="swatch" style="background:#378ADD" onclick="setColor('#378ADD',this)"></div>
+        <div class="swatch" style="background:#D85A30" onclick="setColor('#D85A30',this)"></div>
+        <div class="swatch" style="background:#1D9E75" onclick="setColor('#1D9E75',this)"></div>
+        <div class="swatch" style="background:#7F77DD" onclick="setColor('#7F77DD',this)"></div>
+        <div class="swatch" style="background:#D4537E" onclick="setColor('#D4537E',this)"></div>
+        <div class="swatch" style="background:#EF9F27" onclick="setColor('#EF9F27',this)"></div>
+        <div class="swatch" style="background:#2C2C2A" onclick="setColor('#2C2C2A',this)"></div>
+        <div class="swatch" style="background:#C8A97A" onclick="setColor('#C8A97A',this)"></div>
+        <input type="color" id="custom-color" value="#888780" oninput="setColorHex(this.value)">
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">Shape & size</div>
+      <div class="ctrl-row"><label>Scale</label><input type="range" min="0.4" max="2.5" step="0.05" value="1" oninput="updateParam('scale',this.value)"><span class="val" id="v-scale">1.00</span></div>
+      <div class="ctrl-row"><label>Detail pts</label><input type="range" min="4" max="24" step="1" value="10" oninput="updateParam('teeth',this.value)"><span class="val" id="v-teeth">10</span></div>
+      <div class="ctrl-row"><label>Thickness</label><input type="range" min="0.1" max="1" step="0.05" value="0.35" oninput="updateParam('thick',this.value)"><span class="val" id="v-thick">0.35</span></div>
+      <div class="ctrl-row"><label>Roughness</label><input type="range" min="0" max="1" step="0.05" value="0.3" oninput="updateParam('rough',this.value)"><span class="val" id="v-rough">0.30</span></div>
+    </div>
+    <div>
+      <div class="sec-title">Simulate</div>
+      <button class="sim-btn" id="sim-btn" onclick="runSim()">▶ Run physics test</button>
+      <div id="sim-log">Select an object + material, then run test.</div>
+    </div>
+  </div>
+  <div id="canvas-area">
+    <canvas id="c3d" height="460"></canvas>
+    <div id="stats-bar">
+      <div class="stat"><span class="stat-label">Object</span><span class="stat-val" id="s-obj">Gear</span></div>
+      <div class="stat"><span class="stat-label">Material</span><span class="stat-val" id="s-mat">Steel</span></div>
+      <div class="stat"><span class="stat-label">Mass</span><span class="stat-val" id="s-mass">—</span></div>
+      <div class="stat"><span class="stat-label">Hardness</span><span class="stat-val" id="s-hard">—</span></div>
+      <div class="stat"><span class="stat-label">Durability</span><span class="stat-val" id="s-dur">—</span></div>
+      <div class="stat"><span class="stat-label">Grade</span><span class="stat-val" id="s-grade">Standard</span></div>
+      <div class="stat"><span class="stat-label">Coating</span><span class="stat-val" id="s-coat">None</span></div>
+    </div>
+    <div class="hint">Drag to rotate · Scroll to zoom</div>
+  </div>
+</div>
+</div>
+
+<!-- ======= SABER BUILDER PAGE ======= -->
+<div class="page" id="page-saber">
+<div id="saber-wrap">
+  <div id="saber-panel">
+    <div>
+      <div class="sec-title">Blade</div>
+      <div style="margin-bottom:6px">
+        <div class="sec-title" style="margin-bottom:3px;font-size:9px">Color</div>
+        <div class="swatch-row" id="blade-swatches">
+          <div class="sw active" style="background:#378ADD" onclick="setBladeColor('#378ADD',this)"></div>
+          <div class="sw" style="background:#1D9E75" onclick="setBladeColor('#1D9E75',this)"></div>
+          <div class="sw" style="background:#7F77DD" onclick="setBladeColor('#7F77DD',this)"></div>
+          <div class="sw" style="background:#D85A30" onclick="setBladeColor('#D85A30',this)"></div>
+          <div class="sw" style="background:#D4537E" onclick="setBladeColor('#D4537E',this)"></div>
+          <div class="sw" style="background:#ffffff;border:1px solid #ccc" onclick="setBladeColor('#ffffff',this)"></div>
+          <div class="sw" style="background:#EF9F27" onclick="setBladeColor('#EF9F27',this)"></div>
+        </div>
+      </div>
+      <div class="ctrl-row"><label>Length</label><input type="range" min="80" max="220" step="5" value="160" oninput="setSP('bladeLen',+this.value);document.getElementById('sv-bl').textContent=this.value"><span class="val" id="sv-bl">160</span></div>
+      <div class="ctrl-row"><label>Width</label><input type="range" min="4" max="14" step="1" value="7" oninput="setSP('bladeW',+this.value);document.getElementById('sv-bw').textContent=this.value"><span class="val" id="sv-bw">7</span></div>
+      <div class="ctrl-row"><label>Style</label><select onchange="setSP('bladeStyle',this.value)"><option value="straight">Straight</option><option value="tapered">Tapered</option><option value="curved">Curved</option><option value="double">Double-bladed</option><option value="crossguard">Crossguard</option></select></div>
+    </div>
+    <div>
+      <div class="sec-title">Hilt body</div>
+      <div class="ctrl-row"><label>Length</label><input type="range" min="60" max="180" step="5" value="110" oninput="setSP('hiltLen',+this.value);document.getElementById('sv-hl').textContent=this.value"><span class="val" id="sv-hl">110</span></div>
+      <div class="ctrl-row"><label>Width</label><input type="range" min="12" max="32" step="1" value="20" oninput="setSP('hiltW',+this.value);document.getElementById('sv-hw').textContent=this.value"><span class="val" id="sv-hw">20</span></div>
+      <div class="ctrl-row"><label>Taper</label><input type="range" min="0" max="10" step="1" value="3" oninput="setSP('hiltTaper',+this.value);document.getElementById('sv-ht').textContent=this.value"><span class="val" id="sv-ht">3</span></div>
+      <div class="ctrl-row"><label>Material</label><select onchange="setSP('hiltMat',this.value)"><option value="brushed">Brushed metal</option><option value="chrome">Chrome</option><option value="matte">Matte black</option><option value="bronze">Bronze</option><option value="copper">Copper</option><option value="carbon">Carbon fiber</option><option value="gold">Gold</option></select></div>
+    </div>
+    <div>
+      <div class="sec-title">Add parts</div>
+      <div class="part-grid">
+        <button class="part-btn" onclick="addPart('ridge')">Ridge band</button>
+        <button class="part-btn" onclick="addPart('groove')">Groove</button>
+        <button class="part-btn" onclick="addPart('emitter')">Emitter shroud</button>
+        <button class="part-btn" onclick="addPart('guard')">Hand guard</button>
+        <button class="part-btn" onclick="addPart('pommel')">Pommel cap</button>
+        <button class="part-btn" onclick="addPart('grip')">Grip wrap</button>
+        <button class="part-btn" onclick="addPart('powerBtn')">Power button</button>
+        <button class="part-btn" onclick="addPart('toggleBtn')">Toggle switch</button>
+        <button class="part-btn" onclick="addPart('dial')">Dial / knob</button>
+        <button class="part-btn" onclick="addPart('vent')">Vents</button>
+        <button class="part-btn" onclick="addPart('crystal')">Crystal chamber</button>
+        <button class="part-btn" onclick="addPart('clip')">Belt clip</button>
+        <button class="part-btn" onclick="addPart('coil')">Coil accent</button>
+        <button class="part-btn" onclick="addPart('flare')">Flare ring</button>
+        <button class="part-btn" onclick="addPart('charge')">Charge port</button>
+        <button class="part-btn" onclick="addPart('curve')">Curve section</button>
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">Added parts</div>
+      <div class="parts-list" id="parts-list"><span style="color:var(--text2);font-size:11px">No parts added yet.</span></div>
+    </div>
+    <div>
+      <button class="action-btn" onclick="saberRandomize()">Randomize design</button>
+      <button class="action-btn danger" onclick="clearParts()">Clear all parts</button>
+    </div>
+  </div>
+  <div id="saber-viewer">
+    <canvas id="saber-canvas" width="500" height="600" style="flex:1;display:block;background:var(--bg2);"></canvas>
+    <div id="saber-status">Select parts from the panel to build your lightsaber.</div>
+  </div>
+</div>
+</div>
+
+<script>
+/* ============================================================
+   TAB SWITCHING
+============================================================ */
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('page-' + name).classList.add('active');
+  if (name === 'studio' && !rendererReady) initStudio();
+  if (name === 'saber') drawSaber();
+}
+
+/* ============================================================
+   3D STUDIO
+============================================================ */
+const MATERIALS = {
+  steel:      { name:'Steel',      density:7.85,  hardness:58,  durability:92, flex:18, metalness:0.95, roughness:0.2,  yield:'250 MPa', tensile:'400 MPa', melt:'1370°C', cond:'50 W/m·K' },
+  titanium:   { name:'Titanium',   density:4.51,  hardness:36,  durability:98, flex:14, metalness:0.98, roughness:0.15, yield:'880 MPa', tensile:'950 MPa', melt:'1668°C', cond:'22 W/m·K' },
+  leather:    { name:'Leather',    density:0.86,  hardness:4,   durability:55, flex:88, metalness:0.0,  roughness:0.9,  yield:'8 MPa',   tensile:'25 MPa',  melt:'N/A',    cond:'0.16 W/m·K' },
+  carbon:     { name:'Carbon',     density:1.75,  hardness:72,  durability:87, flex:8,  metalness:0.3,  roughness:0.4,  yield:'600 MPa', tensile:'3500 MPa',melt:'3600°C', cond:'700 W/m·K' },
+  plasma:     { name:'Plasma',     density:0.001, hardness:999, durability:100,flex:0,  metalness:0.0,  roughness:0.0,  yield:'N/A',     tensile:'N/A',     melt:'∞',      cond:'Electromagnetic' },
+  crystal:    { name:'Crystal',    density:2.5,   hardness:82,  durability:70, flex:2,  metalness:0.0,  roughness:0.05, yield:'50 MPa',  tensile:'70 MPa',  melt:'1713°C', cond:'1.4 W/m·K' },
+  obsidian:   { name:'Obsidian',   density:2.4,   hardness:95,  durability:45, flex:1,  metalness:0.1,  roughness:0.05, yield:'35 MPa',  tensile:'45 MPa',  melt:'700°C',  cond:'1.1 W/m·K' },
+  bronze:     { name:'Bronze',     density:8.9,   hardness:30,  durability:78, flex:22, metalness:0.85, roughness:0.35, yield:'195 MPa', tensile:'350 MPa', melt:'950°C',  cond:'60 W/m·K' },
+  dragonbone: { name:'Dragonbone', density:3.2,   hardness:88,  durability:96, flex:12, metalness:0.2,  roughness:0.3,  yield:'420 MPa', tensile:'980 MPa', melt:'2400°C', cond:'8 W/m·K' },
+  mithril:    { name:'Mithril',    density:1.9,   hardness:91,  durability:99, flex:20, metalness:0.99, roughness:0.08, yield:'1100 MPa',tensile:'1800 MPa',melt:'3200°C', cond:'120 W/m·K' },
+};
+const GRADE_MODS = {
+  standard:{hardMod:1.0, durMod:1.0, label:'Standard', desc:'As-produced baseline properties'},
+  hardened:{hardMod:1.25,durMod:1.1, label:'Hardened',  desc:'+25% hardness, +30% yield via quench'},
+  tempered:{hardMod:1.1, durMod:1.2, label:'Tempered',  desc:'+10% hard, +20% toughness via reheat'},
+  annealed:{hardMod:0.75,durMod:0.9, label:'Annealed',  desc:'-25% hard, softer, more machinable'},
+  cast:    {hardMod:0.85,durMod:0.8, label:'Cast',       desc:'Near-net shape, slightly porous'},
+};
+const COAT_INFO = {
+  none:   {label:'None',    bonus:'—',                    hardBonus:0},
+  chrome: {label:'Chrome',  bonus:'+8 HRC, corrosion ✓',  hardBonus:8},
+  nitride:{label:'Nitride', bonus:'+12 HRC surface',      hardBonus:12},
+  dlc:    {label:'DLC',     bonus:'+18 HRC, zero wear',   hardBonus:18},
+  ceramic:{label:'Ceramic', bonus:'+10 HRC, heat resist', hardBonus:10},
+  anodize:{label:'Anodize', bonus:'Corrosion + color',    hardBonus:3},
+};
+const SIM_DB = {
+  gear:      {steel:'Radial stress 187 MPa (safe 2.8×) · Tooth root 94 MPa · Rated 1.2M cycles ✓',titanium:'Lower inertia −42% · Stress 162 MPa (3.2×) · 2.1M cycles ✓',leather:'Yields at 340 N·m — 7× below requirement ⚠',carbon:'Anisotropic laminate · Brittle fracture risk ⚠ Low-shock only',plasma:'EM containment active · No mass, no wear · 3.2 kW ⚡',crystal:'Fracture at 680 N·m ⚠ Decorative only',obsidian:'Extreme hardness · Catastrophic brittle at 500 N·m ⚠',bronze:'Good for low-speed, light loads ✓',dragonbone:'Heat-resistant to 2400°C · 420 MPa yield, 1.8M cycles ✓',mithril:'1100 MPa yield · Ultra-light precision gear ✓'},
+  lightsaber:{steel:'Torque 12 N·m at pommel · Stress 22 MPa · Weight 1.1 kg ✓',titanium:'0.63 kg −43% weight · Resonance 318 Hz · Zero corrosion ✓',leather:'Grip friction 0.72 · Wear life 3–5 yr · Comfort 9.1/10 ✓',carbon:'2.4mm wall · 0.21 kg ultralight · Vibration −94% ✓',plasma:'Blade 28,000 K surface · 1.65 kW draw · Kyber eff 91% ⚡',crystal:'Kyber resonance 99.7% · Force amplification detected ✓',obsidian:'Ceremonial hilt · Brittle under twist load ⚠',bronze:'Classic finish · 0.89 kg ✓',dragonbone:'Legendary grade · Heat-immune hilt ✓',mithril:'Feather-light 0.27 kg · Self-sharpening edge field ✓'},
+  shield:    {steel:'V50 620 m/s · Blunt 150 J dent 2.1mm · 3.8 kg ✓',titanium:'V50 710 m/s +14% · 2.1 kg −45% ✓',leather:'Slashing deflection good · 0.9 kg ✓',carbon:'V50 540 m/s · Excellent vs edges · 0.7 kg ✓',plasma:'EM barrier 100% deflect up to 1.2 kJ · 4.8 kW ⚡',crystal:'Light reflect 99.1% · Brittle at 800 J ⚠',obsidian:'Mirrored face · Brittle on edge impact ⚠',bronze:'Historical V0 180 m/s · 4.1 kg ✓',dragonbone:'Impact 900 J absorbed · Heat immune · 2.6 kg ✓',mithril:'V50 820 m/s · 1.4 kg · No maintenance ✓'},
+  helmet:    {steel:'NIJ Level III · 1.9 kg ✓',titanium:'NIJ Level IIIA+ · 1.1 kg · MRI safe ✓',leather:'Slashing only · 0.4 kg ✓',carbon:'Impact 480 J · 0.62 kg ✓',plasma:'Energy field wrap · 2.1 kW ⚡',crystal:'Optical clarity 99% · Brittle side ⚠',obsidian:'Ceremonial · Brittle side ⚠',bronze:'Ancient battlefield grade · 2.3 kg ✓',dragonbone:'Mythic tier · Heat-proof · 1.7 kg ✓',mithril:'0.6 kg · Self-repairing ✓'},
+  axe:       {steel:'Impact 880 J · Edge 58 HRC · Chop 42mm in oak ✓',titanium:'Impact 880 J · −43% weight ✓',leather:'Handle wrap · Grip friction 0.78 ✓',carbon:'Head: brittle on knot impact ⚠',plasma:'Plasma edge: cuts molecular bonds ⚡',crystal:'Display only · Fractures on first impact ⚠',obsidian:'Razor edge · Single-use brittle ⚠',bronze:'Edge 30 HRC · 800 J capacity ✓',dragonbone:'Mythic split force · No edge loss ✓',mithril:'Adaptive edge · 1100 MPa ✓'},
+  armor:     {steel:'V50 580 m/s · Stab resist 95% · 8.2 kg ✓',titanium:'V50 680 m/s · 4.7 kg ✓',leather:'Slash resist 80% ✓',carbon:'Composite plate · 2.8 kg ✓',plasma:'Energy absorption 100% · 6.2 kW ⚡',crystal:'Blast reflect 88% · Side crack ⚠',obsidian:'Brittle under flex ⚠',bronze:'Historical plate · 9.8 kg ✓',dragonbone:'Dragon-breath proof · 5.1 kg ✓',mithril:'Lightest full protection · 2.2 kg ✓'},
+  chain:     {steel:'Link tensile 14 kN · 2.8 kg/m ✓',titanium:'Tensile 18 kN · 1.6 kg/m ✓',leather:'Braided · Tensile 1.2 kN ✓',carbon:'Tensile 22 kN · 0.6 kg/m ✓',plasma:'EM links · Zero mass · 0.8 kW ⚡',crystal:'Brittle at bend radius <5cm ⚠',obsidian:'Snap at 200 N lateral ⚠',bronze:'Tensile 9 kN · Traditional ✓',dragonbone:'Tensile 24 kN · Mythic ✓',mithril:'Tensile 28 kN · 0.4 kg/m ✓'},
+  arrow:     {steel:'Vd 320 m/s · 18mm penetration · 28 g ✓',titanium:'Vd 340 m/s · 16 g ✓',leather:'Fletching: 3-vane stability ✓',carbon:'Vd 355 m/s · 8 g competition ✓',plasma:'Tracer burn · Kinetic + thermal ⚡',crystal:'Tip fracture on bone ⚠',obsidian:'Razor tip · Snap on bone ⚠',bronze:'Vd 290 m/s · 32 g ✓',dragonbone:'Vd 360 m/s · Magical aura ✓',mithril:'Vd 380 m/s · Self-guiding ✓'},
+  cannon:    {steel:'Chamber 420 MPa · 2000 shots ✓',titanium:'540 MPa · 38% lighter · 3200 shots ✓',leather:'Carriage wrap only ⚠',carbon:'Composite chamber · 680 MPa ✓',plasma:'Rail-cannon mode · 4.2 km/s ⚡',crystal:'Structurally unsafe ⚠',obsidian:'Burst on first shot ⚠',bronze:'Historical spec · 280 MPa ✓',dragonbone:'Fire-breath compatible · 980 MPa ✓',mithril:'1200 MPa · Silent discharge ✓'},
+  crossbow:  {steel:'Draw 680 N · v0 85 m/s · 800k shots ✓',titanium:'Draw 720 N · v0 91 m/s · −38% weight ✓',leather:'Stock grip · Vibration −44% ✓',carbon:'Draw 800 N · v0 98 m/s · 1.2M shots ✓',plasma:'Photon-lath · Pulse mode ⚡',crystal:'Lath brittle at full draw ⚠',obsidian:'Bolt tip only ⚠',bronze:'Draw 580 N · v0 72 m/s ✓',dragonbone:'Draw 900 N · v0 108 m/s ✓',mithril:'Draw 950 N · v0 115 m/s ✓'},
+  hammer:    {steel:'Strike 1800 J · Head 2.4 kg · 500k cycles ✓',titanium:'Strike 1800 J · 1.4 kg ✓',leather:'Handle wrap · Vibration −52% ✓',carbon:'0.4 kg handle · 1800 J transmitted ✓',plasma:'Gravity hammer · ×4 area ⚡',crystal:'Shatters >200 J ⚠',obsidian:'Shatters on first blow ⚠',bronze:'Strike 1600 J · 2.8 kg ✓',dragonbone:'Strike 2200 J · Seismic radius 0.8m ✓',mithril:'Strike 2400 J · Self-damping ✓'},
+  spear:     {steel:'Thrust 1100 N · 14mm plate · 1.8 kg ✓',titanium:'Thrust 1200 N · 1.0 kg ✓',leather:'Wrapped shaft · Grip friction 0.81 ✓',carbon:'Stiffness 480 GPa · 0.6 kg ✓',plasma:'Energy tip · Phase armor ⚡',crystal:'Tip fractures >600 N ⚠',obsidian:'Single-use ⚠',bronze:'Thrust 900 N · 2.2 kg ✓',dragonbone:'Magical penetration ✓',mithril:'Thrust 1400 N · Self-repairing ✓'},
+  blade:     {steel:'BESS 80 g · 58 HRC · 91% retained ✓',titanium:'BESS 120 g · −56% weight ✓',leather:'Handle wrap · Friction 0.74 ✓',carbon:'BESS 60 g · Non-conductive ✓',plasma:'15,000 K edge · No dulling ⚡',crystal:'Molecular edge · Brittle lateral ⚠',obsidian:'BESS 40 g (sharpest) · Single-use ⚠',bronze:'BESS 200 g · 30 HRC ✓',dragonbone:'BESS 65 g · Heat-immune ✓',mithril:'BESS 30 g · Self-sharpening ✓'},
+  sphere:    {steel:'Rolling Coeff 0.12 · Inertia 0.42mr² ✓',titanium:'Bearing 18 kN · Ra 0.02 μm ✓',leather:'Rebound 0.51 · Compression 4.2mm ✓',carbon:'Drag Cd 0.47 · 0.18 kg ✓',plasma:'Orb 4200 cd/m² · Range 12m ⚡',crystal:'Focal 92mm · Transmission 99.3% ✓',obsidian:'Mirror reflectance 96% ✓',bronze:'Dense 8.9 g/cc ✓',dragonbone:'Scrying orb · Magical resonance ✓',mithril:'Near-zero rolling resistance ✓'},
+  ring:      {steel:'Hoop stress 18 MPa · Elongation 0.09mm ✓',titanium:'MRI safe · ISO biocompat ✓',leather:'Flex 42k cycles ✓',carbon:'Break 3.8 kN · 2.1 g ✓',plasma:'Toroidal field · 0.3 kW ⚡',crystal:'Facets 48 · Fire 0.044 ✓',obsidian:'Mirror facets · Brittle ⚠',bronze:'Classical jewelry ✓',dragonbone:'Force-attuned ✓',mithril:'Invisible in moonlight ✓'},
+};
+
+let scene, camera, renderer3d, mesh3d, rendererReady = false;
+let ST = { object:'gear', material:'steel', color:'#888780', scale:1, teeth:10, thick:0.35, rough:0.3, temp:20, load:500, wear:0, grade:'standard', coating:'none' };
+let isDragging=false, prevX=0, prevY=0, rotX=0.3, rotY=0.5, zoomZ=5, simRunning=false;
+
+function initStudio() {
+  const cv = document.getElementById('c3d');
+  const area = document.getElementById('canvas-area');
+  const w = area.clientWidth || 700, h = 460;
+  cv.width = w; cv.height = h;
+  renderer3d = new THREE.WebGLRenderer({canvas:cv, antialias:true, alpha:true});
+  renderer3d.setSize(w, h);
+  renderer3d.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer3d.physicallyCorrectLights = true;
+  renderer3d.outputEncoding = THREE.sRGBEncoding;
+  renderer3d.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer3d.toneMappingExposure = 1.2;
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 100);
+  camera.position.set(0,0,5);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const dl = new THREE.DirectionalLight(0xffffff, 2); dl.position.set(5,8,5); scene.add(dl);
+  const fl = new THREE.DirectionalLight(0x8899ff, 0.8); fl.position.set(-4,-2,3); scene.add(fl);
+  const rl = new THREE.DirectionalLight(0xffeedd, 0.6); rl.position.set(0,5,-5); scene.add(rl);
+  cv.addEventListener('mousedown', e=>{isDragging=true;prevX=e.clientX;prevY=e.clientY;});
+  cv.addEventListener('mousemove', e=>{if(!isDragging)return;rotY+=(e.clientX-prevX)*0.01;rotX+=(e.clientY-prevY)*0.008;prevX=e.clientX;prevY=e.clientY;});
+  window.addEventListener('mouseup',()=>isDragging=false);
+  cv.addEventListener('wheel',e=>{e.preventDefault();zoomZ=Math.max(2,Math.min(10,zoomZ+e.deltaY*0.01));},{passive:false});
+  cv.addEventListener('touchstart',e=>{prevX=e.touches[0].clientX;prevY=e.touches[0].clientY;},{passive:true});
+  cv.addEventListener('touchmove',e=>{rotY+=(e.touches[0].clientX-prevX)*0.012;rotX+=(e.touches[0].clientY-prevY)*0.01;prevX=e.touches[0].clientX;prevY=e.touches[0].clientY;},{passive:true});
+  window.addEventListener('resize',()=>{const nw=area.clientWidth,nh=460;renderer3d.setSize(nw,nh);camera.aspect=nw/nh;camera.updateProjectionMatrix();});
+  rendererReady = true;
+  buildMesh(); updateStats(); updateMatDetail(); animate3d();
+}
+
+function buildGeo() {
+  const T=parseFloat(ST.thick), NT=Math.round(parseFloat(ST.teeth)), obj=ST.object;
+  let geo;
+  if(obj==='gear'){
+    const s=new THREE.Shape(),r1=1.0,r2=1.3;
+    for(let i=0;i<=NT*2;i++){const a=(i/NT)*Math.PI,r=i%2===0?r1:r2;if(i===0)s.moveTo(Math.cos(a)*r,Math.sin(a)*r);else s.lineTo(Math.cos(a)*r,Math.sin(a)*r);}
+    s.closePath();const h=new THREE.Path();
+    for(let i=0;i<=32;i++){const a=(i/32)*Math.PI*2;h.lineTo(Math.cos(a)*0.35,Math.sin(a)*0.35);}s.holes.push(h);
+    geo=new THREE.ExtrudeGeometry(s,{depth:T*1.5,bevelEnabled:true,bevelSize:0.04,bevelThickness:0.04,bevelSegments:2});geo.center();
+  } else if(obj==='lightsaber'){geo=new THREE.CylinderGeometry(0.12,0.15,1.2,32);
+  } else if(obj==='shield'){
+    const s=new THREE.Shape();s.moveTo(0,1.4);s.bezierCurveTo(1.2,1.2,1.3,0.3,1.1,-0.4);s.bezierCurveTo(0.8,-0.9,0.4,-1.3,0,-1.6);s.bezierCurveTo(-0.4,-1.3,-0.8,-0.9,-1.1,-0.4);s.bezierCurveTo(-1.3,0.3,-1.2,1.2,0,1.4);s.closePath();
+    geo=new THREE.ExtrudeGeometry(s,{depth:T*1.2,bevelEnabled:true,bevelSize:0.05,bevelThickness:0.05});geo.center();
+  } else if(obj==='ring'){geo=new THREE.TorusGeometry(0.9,0.22*T+0.1,24,64);
+  } else if(obj==='sphere'){geo=new THREE.SphereGeometry(1.0,48,48);
+  } else if(obj==='blade'){
+    const s=new THREE.Shape();s.moveTo(0,1.8);s.lineTo(0.04,1.5);s.lineTo(0.12,0);s.lineTo(0.14,-0.3);s.lineTo(0,-0.45);s.lineTo(-0.14,-0.3);s.lineTo(-0.12,0);s.lineTo(-0.04,1.5);s.closePath();
+    geo=new THREE.ExtrudeGeometry(s,{depth:T*0.6,bevelEnabled:true,bevelSize:0.02,bevelThickness:0.02});geo.center();
+  } else if(obj==='helmet'){geo=new THREE.SphereGeometry(1.0,32,16,0,Math.PI*2,0,Math.PI*0.65);
+  } else if(obj==='axe'){
+    const s=new THREE.Shape();s.moveTo(0,1.2);s.bezierCurveTo(0.8,1.1,1.3,0.6,1.1,0);s.bezierCurveTo(1.0,-0.3,0.5,-0.4,0,-0.2);s.bezierCurveTo(-0.1,0,-0.12,0.2,-0.08,0.5);s.lineTo(-0.08,1.1);s.closePath();
+    geo=new THREE.ExtrudeGeometry(s,{depth:T*0.8,bevelEnabled:true,bevelSize:0.04,bevelThickness:0.04});geo.center();
+  } else if(obj==='armor'){
+    const s=new THREE.Shape();s.moveTo(-1.1,1.0);s.bezierCurveTo(-1.3,0.5,-1.2,-0.5,-0.8,-1.2);s.bezierCurveTo(-0.4,-1.5,0,-1.6,0,-1.6);s.bezierCurveTo(0,-1.6,0.4,-1.5,0.8,-1.2);s.bezierCurveTo(1.2,-0.5,1.3,0.5,1.1,1.0);s.lineTo(0.4,1.4);s.lineTo(-0.4,1.4);s.closePath();
+    geo=new THREE.ExtrudeGeometry(s,{depth:T*1.0,bevelEnabled:true,bevelSize:0.06,bevelThickness:0.06});geo.center();
+  } else if(obj==='chain'){geo=new THREE.TorusGeometry(0.5,0.12,12,32);
+  } else if(obj==='arrow'){
+    const s=new THREE.Shape();s.moveTo(0,1.8);s.lineTo(0.18,1.0);s.lineTo(0.06,1.0);s.lineTo(0.06,-1.8);s.lineTo(-0.06,-1.8);s.lineTo(-0.06,1.0);s.lineTo(-0.18,1.0);s.closePath();
+    geo=new THREE.ExtrudeGeometry(s,{depth:T*0.5,bevelEnabled:false});geo.center();
+  } else if(obj==='cannon'){geo=new THREE.CylinderGeometry(0.18,0.28,2.2,24);
+  } else if(obj==='crossbow'){
+    const s=new THREE.Shape();s.moveTo(-1.4,0.08);s.lineTo(1.4,0.08);s.lineTo(1.4,-0.08);s.lineTo(0.2,-0.08);s.lineTo(0.2,-1.0);s.lineTo(-0.2,-1.0);s.lineTo(-0.2,-0.08);s.lineTo(-1.4,-0.08);s.closePath();
+    geo=new THREE.ExtrudeGeometry(s,{depth:T*0.6,bevelEnabled:true,bevelSize:0.03,bevelThickness:0.03});geo.center();
+  } else if(obj==='hammer'){geo=new THREE.BoxGeometry(0.9,0.7,T*1.2);
+  } else if(obj==='spear'){geo=new THREE.ConeGeometry(0.18,0.7,8);
+  } else {geo=new THREE.SphereGeometry(1,32,32);}
+  return geo;
+}
+
+function h2t(hex){return new THREE.Color(parseInt(hex.slice(1,3),16)/255,parseInt(hex.slice(3,5),16)/255,parseInt(hex.slice(5,7),16)/255);}
+
+function buildMesh(){
+  if(mesh3d){scene.remove(mesh3d);mesh3d.geometry.dispose();mesh3d.material.dispose();}
+  const geo=buildGeo(), m=MATERIALS[ST.material], col=h2t(ST.color);
+  let mat;
+  if(ST.material==='plasma') mat=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:1.8,metalness:0,roughness:0,transparent:true,opacity:0.85});
+  else if(ST.material==='crystal'||ST.material==='obsidian') mat=new THREE.MeshPhysicalMaterial({color:col,metalness:0.05,roughness:0.05,transmission:0.6,thickness:0.5,ior:1.8,transparent:true,opacity:0.8});
+  else mat=new THREE.MeshStandardMaterial({color:col,metalness:m.metalness,roughness:parseFloat(ST.rough)});
+  mesh3d=new THREE.Mesh(geo,mat);mesh3d.scale.setScalar(parseFloat(ST.scale));scene.add(mesh3d);
+}
+
+function animate3d(){
+  requestAnimationFrame(animate3d);
+  if(mesh3d){mesh3d.rotation.x=rotX;mesh3d.rotation.y=rotY+performance.now()*0.0005;}
+  camera.position.z=zoomZ;renderer3d.render(scene,camera);
+}
+
+function updateStats(){
+  const m=MATERIALS[ST.material],gm=GRADE_MODS[ST.grade],cm=COAT_INFO[ST.coating];
+  const vol=Math.pow(parseFloat(ST.scale),3);
+  document.getElementById('s-mass').textContent=(m.density*vol*0.8).toFixed(2)+' kg';
+  document.getElementById('s-hard').textContent=Math.round(m.hardness*gm.hardMod+cm.hardBonus)+' HRC';
+  document.getElementById('s-dur').textContent=Math.round(m.durability*gm.durMod)+'%';
+  document.getElementById('s-grade').textContent=gm.label;
+  document.getElementById('s-coat').textContent=cm.label;
+}
+
+function updateMatDetail(){
+  const m=MATERIALS[ST.material],cm=COAT_INFO[ST.coating],temp=parseInt(ST.temp);
+  document.getElementById('md-yield').textContent=m.yield;
+  document.getElementById('md-tensile').textContent=m.tensile;
+  document.getElementById('md-melt').textContent=m.melt;
+  document.getElementById('md-cond').textContent=m.cond;
+  document.getElementById('md-coat').textContent=cm.bonus;
+  let tfx='Normal';
+  if(temp>800)tfx='Near melting ⚠';else if(temp>400)tfx='High — strength −18%';else if(temp>200)tfx='Warm — creep risk';else if(temp<0)tfx='Cold — brittle +15%';
+  document.getElementById('md-tempfx').textContent=tfx;
+}
+
+function setObject(name,el){
+  ST.object=name;document.querySelectorAll('.obj-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');
+  document.getElementById('s-obj').textContent=name.charAt(0).toUpperCase()+name.slice(1);
+  if(rendererReady)buildMesh();updateStats();document.getElementById('sim-log').textContent='Object changed. Run test to simulate.';
+}
+
+function setMaterial(name,el){
+  ST.material=name;document.querySelectorAll('.mat-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');
+  document.getElementById('s-mat').textContent=MATERIALS[name].name;
+  if(rendererReady)buildMesh();updateStats();updateMatDetail();document.getElementById('sim-log').textContent='Material changed. Run test to simulate.';
+}
+
+function setColor(hex,el){
+  ST.color=hex;document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));if(el)el.classList.add('active');
+  document.getElementById('custom-color').value=hex;if(rendererReady)buildMesh();
+}
+
+function setColorHex(hex){ST.color=hex;document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));if(rendererReady)buildMesh();}
+
+function updateParam(key,val){
+  ST[key]=key==='teeth'?parseInt(val):parseFloat(val);
+  const suffix=key==='temp'?'°':'';const decimals=['scale','thick','rough'].includes(key)?2:0;
+  document.getElementById('v-'+key).textContent=parseFloat(val).toFixed(decimals)+suffix;
+  if(['scale','teeth','thick','rough'].includes(key)&&rendererReady)buildMesh();
+  updateStats();updateMatDetail();
+}
+
+function updateGrade(val){ST.grade=val;updateStats();updateMatDetail();document.getElementById('sim-log').textContent='Grade: '+GRADE_MODS[val].desc;}
+function updateCoating(val){ST.coating=val;updateStats();updateMatDetail();document.getElementById('sim-log').textContent='Coating: '+COAT_INFO[val].bonus;}
+
+function runSim(){
+  if(simRunning)return;
+  const base=(SIM_DB[ST.object]||SIM_DB['gear'])[ST.material]||'No data.';
+  const gm=GRADE_MODS[ST.grade],cm=COAT_INFO[ST.coating],temp=parseInt(ST.temp),load=parseInt(ST.load),wear=parseInt(ST.wear);
+  const lines=[
+    'Simulating '+MATERIALS[ST.material].name+' '+ST.object+' ['+gm.label+']...',
+    base,'Grade: '+gm.desc,
+    cm.hardBonus>0?'Coating '+cm.label+': '+cm.bonus:'No coating applied.',
+    'Temp '+temp+'°C → '+document.getElementById('md-tempfx').textContent,
+    'Applied load: '+load+' N'+(load>3000?' — high stress ⚠':' — safe ✓'),
+    wear>0?'Wear: '+wear.toLocaleString()+' cycles → '+Math.max(0,100-Math.round(wear/10000))+'% life remaining':'Wear: 0 — new condition ✓',
+  ];
+  const btn=document.getElementById('sim-btn'),log=document.getElementById('sim-log');
+  simRunning=true;btn.classList.add('running');btn.textContent='⏳ Simulating...';log.textContent='';let i=0;
+  function step(){if(i<lines.length){log.textContent+=(i>0?'\n':'')+lines[i];log.scrollTop=log.scrollHeight;i++;setTimeout(step,480);}else{btn.classList.remove('running');btn.textContent='▶ Run physics test';simRunning=false;}}
+  step();
+}
+
+/* ============================================================
+   LIGHTSABER BUILDER
+============================================================ */
+const SCV = document.getElementById('saber-canvas');
+const SCTX = SCV.getContext('2d');
+const MAT_COLORS = {
+  brushed:{body:'#9a9a98',stripe:'#c0c0be',dark:'#6a6a68'},
+  chrome: {body:'#d0d0d0',stripe:'#f0f0f0',dark:'#888888'},
+  matte:  {body:'#3a3a38',stripe:'#4a4a48',dark:'#252523'},
+  bronze: {body:'#cd8b4a',stripe:'#e8a860',dark:'#8a5a28'},
+  copper: {body:'#b87040',stripe:'#d89060',dark:'#7a4820'},
+  carbon: {body:'#2a2a28',stripe:'#4a4a46',dark:'#181816'},
+  gold:   {body:'#d4a820',stripe:'#f0c840',dark:'#906800'},
+};
+const PART_DEFS = {
+  ridge:    {label:'Ridge band',     desc:'Raised metal ring — grip and aesthetic detail'},
+  groove:   {label:'Groove',         desc:'Recessed channel cut into the hilt body'},
+  emitter:  {label:'Emitter shroud', desc:'Protective collar at blade exit point'},
+  guard:    {label:'Hand guard',     desc:'Cross-guard for hand protection'},
+  pommel:   {label:'Pommel cap',     desc:'Weighted end cap — balance and style'},
+  grip:     {label:'Grip wrap',      desc:'Leather or rubber grip section for control'},
+  powerBtn: {label:'Power button',   desc:'Main activation button — ignites the blade'},
+  toggleBtn:{label:'Toggle switch',  desc:'Secondary mode or intensity toggle'},
+  dial:     {label:'Dial / knob',    desc:'Rotary control — blade length or frequency'},
+  vent:     {label:'Vents',          desc:'Heat dissipation slots along the hilt'},
+  crystal:  {label:'Crystal chamber',desc:'Visible kyber crystal window — tuning chamber'},
+  clip:     {label:'Belt clip',      desc:'Magnetic or mechanical belt attachment'},
+  coil:     {label:'Coil accent',    desc:'Wrapped wire or tube aesthetic detail'},
+  flare:    {label:'Flare ring',     desc:'Decorative flared collar or transition piece'},
+  charge:   {label:'Charge port',    desc:'Power cell charge port'},
+  curve:    {label:'Curve section',  desc:'Curved hilt section for custom grip angle'},
+};
+let SS = {bladeColor:'#378ADD',bladeLen:160,bladeW:7,bladeStyle:'straight',hiltLen:110,hiltW:20,hiltTaper:3,hiltMat:'brushed',parts:[]};
+
+function setSP(k,v){SS[k]=v;drawSaber();}
+function setBladeColor(c,el){SS.bladeColor=c;document.querySelectorAll('#blade-swatches .sw').forEach(s=>s.classList.remove('active'));el.classList.add('active');drawSaber();}
+function addPart(t){SS.parts.push({type:t,id:Date.now()});renderPartsList();drawSaber();}
+function removePart(id){SS.parts=SS.parts.filter(p=>p.id!==id);renderPartsList();drawSaber();}
+function clearParts(){SS.parts=[];renderPartsList();drawSaber();}
+
+function renderPartsList(){
+  const el=document.getElementById('parts-list');
+  if(SS.parts.length===0){el.innerHTML='<span style="color:var(--text2);font-size:11px">No parts added yet.</span>';return;}
+  el.innerHTML=SS.parts.map(p=>`<div class="pli"><span>${PART_DEFS[p.type].label}</span><button class="rm-btn" onclick="removePart(${p.id})">remove</button></div>`).join('');
+}
+
+function saberRandomize(){
+  const styles=['straight','tapered','curved','crossguard'],mats=Object.keys(MAT_COLORS);
+  const bColors=['#378ADD','#1D9E75','#7F77DD','#D85A30','#D4537E','#EF9F27','#ffffff'];
+  const allParts=Object.keys(PART_DEFS);
+  SS.bladeStyle=styles[Math.floor(Math.random()*styles.length)];
+  SS.hiltMat=mats[Math.floor(Math.random()*mats.length)];
+  SS.bladeColor=bColors[Math.floor(Math.random()*bColors.length)];
+  SS.bladeLen=100+Math.floor(Math.random()*120);SS.bladeW=5+Math.floor(Math.random()*8);
+  SS.hiltLen=80+Math.floor(Math.random()*80);SS.hiltW=14+Math.floor(Math.random()*14);
+  SS.hiltTaper=Math.floor(Math.random()*8);SS.parts=[];
+  for(let i=0;i<3+Math.floor(Math.random()*5);i++){const t=allParts[Math.floor(Math.random()*allParts.length)];if(!SS.parts.find(p=>p.type===t))SS.parts.push({type:t,id:Date.now()+i});}
+  renderPartsList();drawSaber();
+}
+
+function rrect(x,y,w,h,r){
+  SCTX.beginPath();SCTX.moveTo(x+r,y);SCTX.lineTo(x+w-r,y);SCTX.arcTo(x+w,y,x+w,y+r,r);
+  SCTX.lineTo(x+w,y+h-r);SCTX.arcTo(x+w,y+h,x+w-r,y+h,r);SCTX.lineTo(x+r,y+h);
+  SCTX.arcTo(x,y+h,x,y+h-r,r);SCTX.lineTo(x,y+r);SCTX.arcTo(x,y,x+r,y,r);SCTX.closePath();
+}
+
+function drawSaber(){
+  const W=SCV.width,H=SCV.height;SCTX.clearRect(0,0,W,H);
+  const cx=W/2,mat=MAT_COLORS[SS.hiltMat]||MAT_COLORS.brushed;
+  const hasPommel=SS.parts.some(p=>p.type==='pommel'),hasEmitter=SS.parts.some(p=>p.type==='emitter');
+  const hasGuard=SS.parts.some(p=>p.type==='guard'),hasCrystal=SS.parts.some(p=>p.type==='crystal');
+  const hasGrip=SS.parts.some(p=>p.type==='grip'),hasCoil=SS.parts.some(p=>p.type==='coil');
+  const hasVent=SS.parts.some(p=>p.type==='vent'),hasClip=SS.parts.some(p=>p.type==='clip');
+  const hasCharge=SS.parts.some(p=>p.type==='charge');
+  const ridges=SS.parts.filter(p=>p.type==='ridge'),grooves=SS.parts.filter(p=>p.type==='groove');
+  const flares=SS.parts.filter(p=>p.type==='flare'),powerBtns=SS.parts.filter(p=>p.type==='powerBtn');
+  const toggles=SS.parts.filter(p=>p.type==='toggleBtn'),dials=SS.parts.filter(p=>p.type==='dial');
+  const curves=SS.parts.filter(p=>p.type==='curve');
+  const pommelH=hasPommel?18:8,emitterH=hasEmitter?22:10;
+  const guardW=hasGuard?SS.hiltW+28:SS.hiltW;
+  const totalH=SS.bladeLen+emitterH+SS.hiltLen+pommelH+20;
+  let y=Math.max(10,(H-totalH)/2);
+
+  if(SS.bladeStyle==='double'){
+    SCTX.fillStyle=SS.bladeColor;SCTX.globalAlpha=0.88;
+    rrect(cx-SS.bladeW/2,y-40,SS.bladeW,SS.bladeLen*0.45,2);SCTX.fill();SCTX.globalAlpha=1;
+  }
+  if(SS.bladeStyle==='crossguard'){
+    SCTX.fillStyle=SS.bladeColor;SCTX.globalAlpha=0.85;
+    rrect(cx-SS.hiltW/2-30,y+emitterH-5,28,SS.bladeW*0.8,3);SCTX.fill();
+    rrect(cx+SS.hiltW/2+2,y+emitterH-5,28,SS.bladeW*0.8,3);SCTX.fill();SCTX.globalAlpha=1;
+  }
+  SCTX.fillStyle=SS.bladeColor;SCTX.globalAlpha=0.92;
+  if(SS.bladeStyle==='tapered'){
+    SCTX.beginPath();SCTX.moveTo(cx-SS.bladeW/2,y+SS.bladeLen);SCTX.lineTo(cx+SS.bladeW/2,y+SS.bladeLen);SCTX.lineTo(cx+1,y);SCTX.lineTo(cx-1,y);SCTX.closePath();SCTX.fill();
+  } else if(SS.bladeStyle==='curved'){
+    SCTX.beginPath();SCTX.moveTo(cx-SS.bladeW/2,y+SS.bladeLen);SCTX.bezierCurveTo(cx-SS.bladeW/2-20,y+SS.bladeLen*0.5,cx+SS.bladeW/2+20,y+SS.bladeLen*0.3,cx,y);SCTX.bezierCurveTo(cx+SS.bladeW/2-10,y+SS.bladeLen*0.3,cx+SS.bladeW/2+10,y+SS.bladeLen*0.5,cx+SS.bladeW/2,y+SS.bladeLen);SCTX.closePath();SCTX.fill();
+  } else {rrect(cx-SS.bladeW/2,y,SS.bladeW,SS.bladeLen,2);SCTX.fill();}
+  SCTX.fillStyle='#fff';SCTX.globalAlpha=0.35;rrect(cx-SS.bladeW/4,y+4,SS.bladeW/3,SS.bladeLen-8,1);SCTX.fill();
+  SCTX.globalAlpha=1;
+  y+=SS.bladeLen;
+
+  const ew=hasEmitter?SS.hiltW+10:SS.hiltW+2;
+  SCTX.fillStyle=mat.dark;rrect(cx-ew/2,y,ew,emitterH,4);SCTX.fill();
+  SCTX.fillStyle=mat.stripe;rrect(cx-ew/2+2,y+2,ew-4,3,1);SCTX.fill();
+  y+=emitterH;
+
+  const hiltTop=y,hw=SS.hiltW,ht=SS.hiltTaper,hl=SS.hiltLen;
+  if(curves.length>0){
+    const cv2=18*curves.length;
+    SCTX.fillStyle=mat.body;SCTX.beginPath();
+    SCTX.moveTo(cx-hw/2,y);SCTX.bezierCurveTo(cx-hw/2-cv2,y+hl*0.4,cx-hw/2-ht-cv2*0.5,y+hl*0.7,cx-hw/2-ht,y+hl);
+    SCTX.lineTo(cx+hw/2+ht,y+hl);SCTX.bezierCurveTo(cx+hw/2+ht+cv2*0.5,y+hl*0.7,cx+hw/2+cv2,y+hl*0.4,cx+hw/2,y);
+    SCTX.closePath();SCTX.fill();SCTX.strokeStyle=mat.stripe;SCTX.lineWidth=0.5;SCTX.stroke();
+  } else {
+    SCTX.fillStyle=mat.body;SCTX.beginPath();SCTX.moveTo(cx-hw/2,y);SCTX.lineTo(cx+hw/2,y);SCTX.lineTo(cx+hw/2+ht,y+hl);SCTX.lineTo(cx-hw/2-ht,y+hl);SCTX.closePath();SCTX.fill();
+    SCTX.strokeStyle=mat.stripe;SCTX.lineWidth=0.5;SCTX.stroke();
+  }
+  if(hasGrip){SCTX.strokeStyle='#5a3a1a';SCTX.lineWidth=3;for(let gy=y+hl*0.3;gy<y+hl*0.8;gy+=6){const lw=hw+2*(ht/hl)*(gy-y);SCTX.beginPath();SCTX.moveTo(cx-lw/2-2,gy);SCTX.lineTo(cx+lw/2+2,gy);SCTX.stroke();}}
+  if(hasCoil){SCTX.strokeStyle=mat.stripe;SCTX.lineWidth=1.5;for(let cy2=y+8;cy2<y+hl*0.45;cy2+=4){const lw=hw+2*(ht/hl)*(cy2-y)+4;SCTX.beginPath();SCTX.moveTo(cx-lw/2,cy2);SCTX.lineTo(cx+lw/2,cy2);SCTX.stroke();}}
+  ridges.forEach((_,i)=>{const ry=y+hl*(0.15+i*0.2),rw=hw+2*(ht/hl)*(ry-y)+6;SCTX.fillStyle=mat.stripe;rrect(cx-rw/2,ry-4,rw,8,3);SCTX.fill();SCTX.fillStyle=mat.dark;rrect(cx-rw/2+1,ry-1,rw-2,2,1);SCTX.fill();});
+  grooves.forEach((_,i)=>{const gy=y+hl*(0.25+i*0.18),gw=hw+2*(ht/hl)*(gy-y);SCTX.fillStyle=mat.dark;rrect(cx-gw/2-2,gy-2,gw+4,4,2);SCTX.fill();});
+  flares.forEach((_,i)=>{const fy=y+hl*(0.5+i*0.2),fw=hw+2*(ht/hl)*(fy-y)+14;SCTX.fillStyle=mat.stripe;SCTX.beginPath();SCTX.moveTo(cx-fw/2,fy-2);SCTX.lineTo(cx-fw/2+8,fy+8);SCTX.lineTo(cx+fw/2-8,fy+8);SCTX.lineTo(cx+fw/2,fy-2);SCTX.closePath();SCTX.fill();});
+  if(hasVent){for(let vi=0;vi<4;vi++){const vy=y+hl*0.35+vi*10,vw2=hw+2*(ht/hl)*(vy-y);SCTX.fillStyle=mat.dark;rrect(cx-vw2/2-1,vy,vw2+2,3,1);SCTX.fill();SCTX.fillStyle='#000';SCTX.globalAlpha=0.4;rrect(cx-vw2/2,vy+0.5,vw2,2,1);SCTX.fill();SCTX.globalAlpha=1;}}
+  if(hasCrystal){const cry=y+hl*0.42,cw2=hw+2*(ht/hl)*(cry-y)-4;SCTX.fillStyle='#1a1a2e';rrect(cx-cw2/2,cry,cw2,20,3);SCTX.fill();SCTX.fillStyle=SS.bladeColor;SCTX.globalAlpha=0.7;rrect(cx-cw2/2+3,cry+3,cw2-6,14,2);SCTX.fill();SCTX.fillStyle='#fff';SCTX.globalAlpha=0.5;SCTX.beginPath();SCTX.arc(cx,cry+10,4,0,Math.PI*2);SCTX.fill();SCTX.globalAlpha=1;}
+  powerBtns.forEach((_,i)=>{const by=y+hl*(0.3+i*0.12),bx=cx+hw/2+(ht/hl)*(by-y)+5;SCTX.fillStyle='#cc2222';SCTX.beginPath();SCTX.arc(bx,by,5,0,Math.PI*2);SCTX.fill();SCTX.fillStyle='#ff4444';SCTX.beginPath();SCTX.arc(bx-1,by-1,2,0,Math.PI*2);SCTX.fill();SCTX.strokeStyle=mat.dark;SCTX.lineWidth=1;SCTX.beginPath();SCTX.arc(bx,by,7,0,Math.PI*2);SCTX.stroke();});
+  toggles.forEach((_,i)=>{const ty=y+hl*(0.45+i*0.12),tx=cx-hw/2-(ht/hl)*(ty-y)-5;SCTX.fillStyle=mat.dark;rrect(tx-5,ty-8,10,16,3);SCTX.fill();SCTX.fillStyle='#4a9a4a';rrect(tx-3,ty-5,6,6,2);SCTX.fill();});
+  dials.forEach((_,i)=>{const dy=y+hl*(0.55+i*0.1),dx=cx+hw/2+(ht/hl)*(dy-y)+6;SCTX.fillStyle=mat.dark;SCTX.beginPath();SCTX.arc(dx,dy,7,0,Math.PI*2);SCTX.fill();SCTX.fillStyle=mat.stripe;SCTX.beginPath();SCTX.arc(dx,dy,5,0,Math.PI*2);SCTX.fill();SCTX.strokeStyle=mat.dark;SCTX.lineWidth=1.5;SCTX.beginPath();SCTX.moveTo(dx,dy);SCTX.lineTo(dx+4,dy-3);SCTX.stroke();});
+  if(hasClip){const clipY=y+hl*0.6,clipW=hw+2*(ht/hl)*(clipY-y);SCTX.fillStyle=mat.dark;rrect(cx+clipW/2+2,clipY,10,30,3);SCTX.fill();SCTX.fillStyle=mat.stripe;rrect(cx+clipW/2+3,clipY+2,8,3,1);SCTX.fill();}
+  if(hasCharge){const chY=y+hl*0.88,chW=hw+2*(ht/hl)*(chY-y);SCTX.fillStyle=mat.dark;rrect(cx-8,chY,16,8,2);SCTX.fill();SCTX.fillStyle='#333';rrect(cx-5,chY+2,10,4,1);SCTX.fill();}
+  y+=hl;
+  if(hasGuard){SCTX.fillStyle=mat.dark;rrect(cx-guardW/2,y-2,guardW,14,4);SCTX.fill();SCTX.fillStyle=mat.stripe;rrect(cx-guardW/2+3,y+2,guardW-6,3,1);SCTX.fill();y+=10;}
+  if(hasPommel){const pw=SS.hiltW+ht+8;SCTX.fillStyle=mat.stripe;rrect(cx-pw/2,y,pw,pommelH,5);SCTX.fill();SCTX.fillStyle=mat.body;rrect(cx-pw/2+2,y+3,pw-4,pommelH-6,3);SCTX.fill();}
+  else{SCTX.fillStyle=mat.dark;rrect(cx-hw/2-ht,y,hw+ht*2,8,3);SCTX.fill();}
+  document.getElementById('saber-status').textContent=SS.parts.length>0?SS.parts.map(p=>PART_DEFS[p.type].label).join(' · '):'No parts added. Use the panel to build your hilt.';
+}
+
+window.addEventListener('load',()=>{initStudio();drawSaber();});
+</script>
+</body>
+</html>
